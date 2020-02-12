@@ -7,6 +7,8 @@ module Spree
 
         def create_payment_intent
           validate_payments_attributes([payment_params])
+          # Clear out all the pending payments
+          @order.payments.pending.each(&:void!)
           @payment = @order.payments.build(payment_params)
           # Make sure to use physical credit card otherwise we can't
           # process the payment
@@ -27,6 +29,7 @@ module Spree
 
         def capture_payment_intent
           @payment.capture!
+          @order.reload
           while @order.next; end
           # If "@order.next" didn't trigger payment processing already (e.g. if the order was
           # already complete) then trigger it manually now
