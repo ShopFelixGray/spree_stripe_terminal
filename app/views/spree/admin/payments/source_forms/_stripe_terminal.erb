@@ -1,0 +1,274 @@
+<div class="form-group" data-hook="stripe-readers">
+<strong>Select Reader</strong>
+<br/>
+<ul id="stripe-readers-list"></ul>
+</div>
+
+<%= link_to Spree.t(:collect_payment), 'javascript:this.collectCardPayment();', class: 'btn btn-primary btn-success', id: 'paymentButton' %>
+<%= link_to Spree.t(:discover_readers), 'javascript:this.refreshReaders();', class: 'btn btn-primary', id: 'refreshReaders' %>
+<%= link_to Spree.t(:cancel_payment), 'javascript:this.cancelPendingPayment();', class: 'btn btn-primary btn-danger', style: 'visibility: hidden;', id: 'cancelButton' %>
+
+<script src="https://js.stripe.com/terminal/v1/"></script>
+
+<script>
+  let orderId = "<%= @order.number %>";
+  let paymentMethodId = "<%= payment_method.id %>";
+  let testMode = <%= payment_method.preferred_test_mode %>;
+  let pendingPaymentIntentSecret = null;
+
+  function toggleButton(name) {
+    var button = document.getElementById(name);
+    if (button.style.visibility === "hidden") {
+      button.style.visibility = "visible";
+    } else {
+      button.style.visibility = "hidden";
+    }
+  }
+
+
+  client = async (method, url, body) => {
+    let response = await fetch(url, {
+      method: 'POST',
+      body: body,
+      headers: {
+        'X-Spree-Token': Spree.api_key,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.ok) {
+      return response.json();
+    } else {
+      let text = await response.text();
+      console.log(text);
+    }
+  }
+
+  doPost = async (url, body) => {
+    return this.client('POST', url, body);
+  }
+
+  createConnectionToken = async () => {
+    const formData = new URLSearchParams();
+    return this.doPost(Spree.routes.terminal_api + "/connection_token", formData);
+  }
+
+  var terminal = StripeTerminal.create({
+    onFetchConnectionToken: async () => {
+        let connectionTokenResult = await this.createConnectionToken();
+        return connectionTokenResult.secret;
+      },
+    onUnexpectedReaderDisconnect: async () => {
+        alert(`Terminal disconnected!`);
+        console.log("Terminal disconnected");
+      },
+  });
+
+  // 2. Discover and connect to a reader.
+  discoverReaders = async (simulated) => {
+    // Need to disconnect if we want to search again
+    await this.disconnectReader();
+    // 2a. Discover registered readers to connect to.
+    const discoverResult = await this.terminal.discoverReaders({
+      simulated: simulated
+    });
+    if (discoverResult.error) {
+      alert(`Discover failed: ${discoverResult.error.message}`);
+      console.log("Failed to discover: ", discoverResult.error);
+      return discoverResult.error;
+    } else {
+      return discoverResult.discoveredReaders;
+    }
+  };
+
+  connectToReader = async selectedReader => {
+    // 2b. Connect to a discovered reader.
+    const connectResult = await this.terminal.connectReader(selectedReader);
+    if (connectResult.error) {
+      alert(`Connection failed: ${connectResult.error.message}`);
+      console.log("Failed to connect:", connectResult.error);
+    } else {
+      return connectResult;
+    }
+  };
+
+  disconnectReader = async () => {
+    // 2c. Disconnect from the reader, in case the user wants to switch readers.
+    await this.terminal.disconnectReader();
+  };
+
+  updateReader = async () => {
+    // 3a. Update the reader display to show cart contents to the customer
+    await this.terminal.setReaderDisplay({
+      type: "cart",
+      cart: {
+        line_items: [
+          <% @order.line_items.each do |line_item| %>
+            {
+              description: "<%= line_item.name %>",
+              amount: <%= line_item.price.to_s %> * 100,
+              quantity: <%= line_item.quantity %>
+            },
+          <% end %>
+        ],
+        tax: <%= @order.tax_total %> * 100,
+        total: document.getElementById("payment_amount").value * 100,
+        currency: "<%= @order.currency %>"
+      }
+    });
+    console.log("Reader Display Updated!");
+    return;
+  };
+
+  connectToSelectedReader = async () => {
+    var selectedIndex = parseInt($("input[name='readers']:checked").val());
+    window.localStorage.selectedReaderIndex = selectedIndex;
+    return await this.connectToReader(savedDiscoveredReaders()[selectedIndex]);
+  }
+
+  function saveDiscoveredReaders(discoveredReaders) {
+    window.localStorage.discoverReadersResults = JSON.stringify(discoveredReaders);
+  }
+
+  function savedDiscoveredReaders()  {
+    // Save the discovered readers to local storage
+    // We dont want to discover readers everytime
+    try {
+      return JSON.parse(window.localStorage.discoverReadersResults);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 3c. Cancel a pending payment.
+  // Note this can only be done before calling `processPayment`.
+  cancelPendingPayment = async () => {
+    await this.terminal.cancelCollectPaymentMethod();
+    pendingPaymentIntentSecret = null;
+    // Need to disconnect reader because we do a connect
+    // on collect payment button clicked
+    await this.disconnectReader();
+  };
+
+  createPaymentIntent = async () => {
+    const formData = {
+        payment: {
+            amount : document.getElementById("payment_amount").value,
+            payment_method_id : paymentMethodId
+        }
+    }
+    return this.doPost(Spree.routes.terminal_api + "/create_payment_intent/" + orderId, JSON.stringify(formData));
+  }
+
+  capturePaymentIntent = async (paymentId) => {
+    const formData = new URLSearchParams();
+    return this.doPost(Spree.routes.terminal_api + "/capture_payment_intent/" + orderId + "/payment/" + paymentId, formData);
+  }
+
+  collectCardPayment = async () => {
+    this.toggleButton("refreshReaders");
+    this.toggleButton("paymentButton");
+    // We want to reuse the same PaymentIntent object in the case of declined charges, so we
+    // store the pending PaymentIntent's secret until the payment is complete.
+    if (!pendingPaymentIntentSecret) {
+      try {
+        await this.connectToSelectedReader();
+        await this.updateReader();
+
+        let createIntentResponse = await this.createPaymentIntent();
+        pendingPaymentIntentSecret = createIntentResponse.secret;
+        this.paymentId = createIntentResponse.payment_id;
+      } catch (e) {
+        this.toggleButton("paymentButton");
+        this.toggleButton("refreshReaders");
+        console.log(e);
+        return;
+      }
+    }
+    // Read a card from the customer
+    const paymentMethodPromise = this.terminal.collectPaymentMethod(
+      pendingPaymentIntentSecret
+    );
+
+    this.toggleButton("cancelButton");
+
+    const result = await paymentMethodPromise;
+    if (result.error) {
+      alert(`Collect failed: ${result.error.message}`);
+      console.log("Collect payment method failed:", result.error.message);
+      this.toggleButton("paymentButton");
+      this.toggleButton("refreshReaders");
+      this.toggleButton("cancelButton");
+    } else {
+      const confirmResult = await this.terminal.processPayment(
+        result.paymentIntent
+      );
+      // At this stage, the payment can no longer be canceled because we've sent the request to the network.
+      this.toggleButton("cancelButton");
+      if (confirmResult.error) {
+        alert(`Confirm failed: ${confirmResult.error.message}`);
+        this.toggleButton("paymentButton");
+        this.toggleButton("refreshReaders");
+      } else if (confirmResult.paymentIntent) {
+        try {
+          // Capture the PaymentIntent from your backend client and mark the payment as complete
+          const captureResult = await this.capturePaymentIntent(this.paymentId);
+          pendingPaymentIntentSecret = null;
+          console.log("Payment Successful!");
+          if (captureResult.error) {
+            alert(`Capture failed: ${captureResult.error.message}`);
+          } else {
+            // Normally this doesnt need to happen but since the page can be refreshed
+            await this.disconnectReader();
+            window.location.replace(Spree.adminPathFor("orders/" + orderId + "/payments"));
+          }
+          return;
+        } catch (e) {
+          console.log(e);
+          this.toggleButton("paymentButton");
+          this.toggleButton("refreshReaders");
+          return;
+        }
+      }
+    }
+  };
+
+  refreshReaders = async () => {
+    // You need to remove the items from local storage
+    // Setting to null wont work
+    window.localStorage.removeItem('selectedReaderIndex');
+    window.localStorage.removeItem('discoverReadersResults');
+    await this.updateReadersView();
+  }
+
+  updateReadersView = async () => {
+    var discoverReadersResults = savedDiscoveredReaders()
+
+    if (discoverReadersResults === null) {
+      discoverReadersResults = await discoverReaders(testMode);
+      saveDiscoveredReaders(discoverReadersResults)
+    }
+
+    var list = $("#stripe-readers-list");
+    // Clear the list before we add all the reader radio buttons
+    list.empty();
+    discoverReadersResults.forEach(function(reader, index) {
+      list.append("<li><label><input type='radio' name='readers' value='" + index + "'> " + reader.label + "</label></li>");
+    })
+
+    const selectedIndex = window.localStorage.selectedReaderIndex;
+
+    if (typeof selectedIndex === 'undefined') {
+      window.localStorage.selectedReaderIndex = 0;
+    }
+
+    $("input[name=readers][value=" + window.localStorage.selectedReaderIndex + "]").prop("checked", true);
+  }
+
+  window.addEventListener('DOMContentLoaded', async function() {
+    $("input#payment_payment_method_id_" + <%= payment_method.id %>).click(async function() {
+      updateReadersView();
+    });
+  });
+
+</script>
