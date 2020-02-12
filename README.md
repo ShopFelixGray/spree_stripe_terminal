@@ -1,12 +1,12 @@
-# SpreeStripeTerminal
+# Spree Stripe Terminal
 
-Introduction goes here.
+This gem allows you to process payments with the stripe terminal via the backend of spree. Make sure to register the reader with the stripe dashboard before you begin.
 
 ## Installation
 
 1. Add this extension to your Gemfile with this line:
   ```ruby
-  gem 'spree_stripe_terminal', github: '[your-github-handle]/spree_stripe_terminal'
+  gem 'spree_stripe_terminal', github: 'ShopFelixGray/spree_stripe_terminal'
   ```
 
 2. Install the gem using Bundler:
@@ -18,6 +18,13 @@ Introduction goes here.
   ```ruby
   bundle exec rails g spree_stripe_terminal:install
   ```
+
+4. Add a stripe.rb file to your application config/initializers folder with the following information:
+   ```ruby
+   require 'stripe'
+   Stripe.api_key = YOUR_STRIPE_API_KEY
+   Stripe.api_version = '2019-05-16'
+   ```
 
 4. Restart your server
 
@@ -46,4 +53,4 @@ If you'd like to contribute, please take a look at the
 [instructions](CONTRIBUTING.md) for installing dependencies and crafting a good
 pull request.
 
-Copyright (c) 2020 [name of extension creator], released under the New BSD License
+Copyright (c) 2020 Houtan Fanisalek (Felix Gray, Inc.), released under the New BSD License
