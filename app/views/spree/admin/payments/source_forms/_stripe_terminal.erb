@@ -3,6 +3,7 @@
 <br/>
 <ul id="stripe-readers-list"></ul>
 </div>
+<div id="terminalMessage" style="visibility: hidden;">Connecting with the terminal...</div>
 
 <%= link_to Spree.t(:collect_payment), 'javascript:this.collectCardPayment();', class: 'btn btn-primary btn-success', id: 'paymentButton' %>
 <%= link_to Spree.t(:discover_readers), 'javascript:this.refreshReaders();', class: 'btn btn-primary', id: 'refreshReaders' %>
@@ -168,6 +169,7 @@
   collectCardPayment = async () => {
     this.toggleButton("refreshReaders");
     this.toggleButton("paymentButton");
+    this.toggleButton("terminalMessage");
     // We want to reuse the same PaymentIntent object in the case of declined charges, so we
     // store the pending PaymentIntent's secret until the payment is complete.
     if (!pendingPaymentIntentSecret) {
@@ -181,6 +183,7 @@
       } catch (e) {
         this.toggleButton("paymentButton");
         this.toggleButton("refreshReaders");
+        this.toggleButton("terminalMessage");
         console.log(e);
         return;
       }
@@ -199,6 +202,7 @@
       this.toggleButton("paymentButton");
       this.toggleButton("refreshReaders");
       this.toggleButton("cancelButton");
+      this.toggleButton("terminalMessage");
     } else {
       const confirmResult = await this.terminal.processPayment(
         result.paymentIntent
@@ -209,6 +213,7 @@
         alert(`Confirm failed: ${confirmResult.error.message}`);
         this.toggleButton("paymentButton");
         this.toggleButton("refreshReaders");
+        this.toggleButton("terminalMessage");
       } else if (confirmResult.paymentIntent) {
         try {
           // Capture the PaymentIntent from your backend client and mark the payment as complete
@@ -217,6 +222,9 @@
           console.log("Payment Successful!");
           if (captureResult.error) {
             alert(`Capture failed: ${captureResult.error.message}`);
+            this.toggleButton("paymentButton");
+            this.toggleButton("refreshReaders");
+            this.toggleButton("terminalMessage");
           } else {
             // Normally this doesnt need to happen but since the page can be refreshed
             await this.disconnectReader();
@@ -227,6 +235,7 @@
           console.log(e);
           this.toggleButton("paymentButton");
           this.toggleButton("refreshReaders");
+          this.toggleButton("terminalMessage");
           return;
         }
       }
