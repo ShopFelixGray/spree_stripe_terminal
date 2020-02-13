@@ -268,6 +268,8 @@
   window.addEventListener('DOMContentLoaded', async function() {
     $("input#payment_payment_method_id_" + <%= payment_method.id %>).click(async function() {
       updateReadersView();
+      // Hide the update button to avoid confusion
+      $('#new_payment button[type="submit"]').hide();
     });
   });
 

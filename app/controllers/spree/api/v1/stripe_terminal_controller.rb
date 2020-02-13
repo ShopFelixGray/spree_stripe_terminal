@@ -28,13 +28,17 @@ module Spree
         end
 
         def capture_payment_intent
-          @payment.capture!
-          @order.reload
-          while @order.next; end
-          # If "@order.next" didn't trigger payment processing already (e.g. if the order was
-          # already complete) then trigger it manually now
-          @payment.process! if @order.completed? && @payment.checkout?
-          render status: 200, json: {}
+          begin
+            @payment.capture!
+            @order.reload
+            while @order.next; end
+            # If "@order.next" didn't trigger payment processing already (e.g. if the order was
+            # already complete) then trigger it manually now
+            @payment.process! if @order.completed? && @payment.checkout?
+            render status: 200, json: {}
+          rescue Exception => e
+            render status: 402, json: {}
+          end
         end
 
         def connection_token
