@@ -12,7 +12,8 @@ module Spree
           @payment = @order.payments.build(payment_params)
           # Make sure to use physical credit card otherwise we can't
           # process the payment
-          @payment.source = Spree::PhysicalCreditCard.new
+          @payment.source = Spree::PhysicalCreditCard.new(payment_method: @payment.payment_method)
+          @payment.source_type = 'Spree::PhysicalCreditCard'
           if @payment.save
             # Authorize the charge so stripe gateway can proceed
             @payment.authorize!
