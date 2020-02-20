@@ -24,6 +24,12 @@ module Spree
       provider.show_intent(response_code, {})
     end
 
+    def receipt(response_code)
+      payment_intent = show(response_code)
+      charges = payment_intent.params['charges']['data']
+      charges&.last['payment_method_details']['card_present']['receipt']
+    end
+
     def create_profile(_payment)
       return
     end
