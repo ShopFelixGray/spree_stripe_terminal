@@ -1,9 +1,9 @@
 <div class="form-group" data-hook="stripe-readers">
-<strong>Select Reader</strong>
+<strong><%= Spree.t(:select_reader) %></strong>
 <br/>
 <ul id="stripe-readers-list"></ul>
 </div>
-<div id="terminalMessage" style="visibility: hidden;">Connecting with the terminal...</div>
+<div id="terminalMessage" style="visibility: hidden;"><%= Spree.t(:connection_message) %></div>
 
 <%= link_to Spree.t(:collect_payment), 'javascript:this.collectCardPayment();', class: 'btn btn-primary btn-success', id: 'paymentButton' %>
 <%= link_to Spree.t(:discover_readers), 'javascript:this.refreshReaders();', class: 'btn btn-primary', id: 'refreshReaders' %>

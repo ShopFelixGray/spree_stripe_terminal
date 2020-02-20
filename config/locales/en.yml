@@ -2,4 +2,9 @@
 # See https://github.com/svenfuchs/rails-i18n/tree/master/rails%2Flocale for starting points.
 
 en:
-  hello: "Hello world"
+  spree:
+    cancel_payment: Cancel Payment
+    collect_payment: Collect Payment
+    discover_readers: Discover Readers
+    select_reader: Select Reader
+    connection_message: Connecting with the terminal...
