@@ -33,5 +33,21 @@ module Spree
     def create_profile(_payment)
       return
     end
+
+    def cancel(response_code)
+      _payment = Spree::Payment.valid.where(
+        response_code: response_code,
+        source_type:   payment_source_class.to_s
+      ).first
+
+      return if _payment.nil?
+
+      if _payment.pending?
+        _payment.void_transaction!
+      elsif _payment.completed? && _payment.can_credit?
+        provider.refund(_payment.credit_allowed.to_money.cents, response_code)
+      end
+    end
+
   end
 end
